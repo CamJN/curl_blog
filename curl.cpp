@@ -27,7 +27,7 @@ static OSStatus LookupKeychainItem(const char *label,
     /* Set up our search criteria and expected results: */
     values[0] = kSecClassIdentity; /* we want a certificate and a key */
     keys[0] = kSecClass;
-    values[1] = kCFBooleanFalse;    /* we don't need a reference */
+    values[1] = kCFBooleanTrue;    /* we need a reference */
     keys[1] = kSecReturnRef;
     values[2] = kSecMatchLimitOne; /* one is enough, thanks */
     keys[2] = kSecMatchLimit;
@@ -117,6 +117,27 @@ void prepareCurlPOST(CURL *curl, string &bodyJsonString, string *responseData, s
   curl_easy_setopt(curl, CURLOPT_CAINFO, ca_path);
 }
 
+void killKey(){
+	SecIdentityRef id = NULL;
+	if (LookupKeychainItem(cert_label,&id) != errSecItemNotFound){
+
+		CFArrayRef itemList = CFArrayCreate(NULL, (const void **)&id, 1, NULL);
+		const void *keys2[]   = { kSecClass,  kSecMatchItemList,  kSecMatchLimit };
+		const void *values2[] = { kSecClassIdentity, itemList, kSecMatchLimitAll };
+
+		CFDictionaryRef dict = CFDictionaryCreate(NULL, keys2, values2, 3, NULL, NULL);
+		OSStatus oserr = SecItemDelete(dict);
+		if (oserr) {
+			CFStringRef str = SecCopyErrorMessageString(oserr, NULL);
+			printf("Removing Passenger Cert from keychain failed: %s Please remove the private key from the certificate labeled %s in your keychain.", CFStringGetCStringPtr(str,kCFStringEncodingUTF8), cert_label);
+			CFRelease(str);
+		}
+		CFRelease(dict);
+		CFRelease(itemList);
+
+	}
+}
+
 void preAuthKey(){
   SecIdentityRef id = NULL;
   if(LookupKeychainItem(cert_label,&id) == errSecItemNotFound){
@@ -147,4 +168,5 @@ int main(){
   }
   curl_slist_free_all(chunk);
   curl_easy_cleanup(curl);
+  killKey();
 }
